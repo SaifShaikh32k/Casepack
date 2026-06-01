@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EAN Location Finder</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0f14;
+    --surface: #161921;
+    --surface2: #1e2330;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --accent: #00e5a0;
+    --accent-dim: rgba(0,229,160,0.12);
+    --accent-glow: rgba(0,229,160,0.25);
+    --text: #f0f2f5;
+    --text2: #8b92a5;
+    --text3: #565d72;
+    --danger: #ff5c5c;
+    --danger-dim: rgba(255,92,92,0.1);
+    --warn: #ffb347;
+    --warn-dim: rgba(255,179,71,0.1);
+    --info: #5b8fff;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px 80px;
+  }
+  header { text-align: center; margin-bottom: 48px; }
+  .logo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-glow);
+    border-radius: 99px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .logo-dot {
+    width: 7px; height: 7px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+  h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.15;
+    color: var(--text);
+  }
+  h1 span { color: var(--accent); }
+  .subtitle { margin-top: 10px; color: var(--text2); font-size: 15px; font-weight: 300; }
+
+  .search-wrap { width: 100%; max-width: 640px; margin-bottom: 24px; }
+  .search-box {
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border: 1.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 6px 6px 6px 20px;
+    gap: 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-box:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .search-icon { color: var(--text3); flex-shrink: 0; }
+  .search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    letter-spacing: 2px;
+    padding: 8px 0;
+  }
+  .search-input::placeholder {
+    color: var(--text3);
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .search-btn {
+    background: var(--accent);
+    color: #0d0f14;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 12px 24px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .search-btn:hover { opacity: 0.85; }
+  .search-btn:active { transform: scale(0.97); }
+  .search-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .result-area { width: 100%; max-width: 640px; min-height: 60px; }
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 24px;
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .result-card.success { border-color: rgba(0,229,160,0.3); }
+  .result-card.success .result-badge { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-glow); }
+  .result-card.notfound { border-color: rgba(255,92,92,0.25); }
+  .result-card.notfound .result-badge { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(255,92,92,0.25); }
+  .result-card.error { border-color: rgba(255,179,71,0.25); }
+  .result-card.error .result-badge { background: var(--warn-dim); color: var(--warn); border: 1px solid rgba(255,179,71,0.25); }
+
+  .result-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .result-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 99px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .result-ean { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--text3); text-align: right; word-break: break-all; }
+
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .result-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+  }
+  .result-item.full { grid-column: 1 / -1; }
+  .result-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+  .result-value { font-size: 16px; font-weight: 500; color: var(--text); word-break: break-word; }
+  .result-value.location { color: var(--accent); font-size: 20px; font-weight: 600; }
+  .result-value.fsn { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--info); }
+
+  .not-found-msg { font-size: 15px; color: var(--text2); line-height: 1.6; margin-top: 4px; }
+  .not-found-msg strong { color: var(--danger); }
+
+  .loading { display: flex; align-items: center; gap: 12px; padding: 24px; color: var(--text2); font-size: 14px; }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .recent-wrap { width: 100%; max-width: 640px; margin-top: 24px; }
+  .recent-title { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+  .recent-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .recent-chip {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 99px;
+    padding: 5px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .recent-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  footer { margin-top: 64px; text-align: center; font-size: 12px; color: var(--text3); }
+
+  @media (max-width: 480px) {
+    .result-grid { grid-template-columns: 1fr; }
+    .result-item.full { grid-column: 1; }
+    .search-input { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-badge">
+    <div class="logo-dot"></div>
+    Live Inventory
+  </div>
+  <h1>EAN <span>Lookup</span></h1>
+  <p class="subtitle">Scan or enter an EAN barcode to find product location</p>
+</header>
+
+<div class="search-wrap">
+  <div class="search-box">
+    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+    </svg>
+    <input
+      class="search-input"
+      type="text"
+      id="eanInput"
+      placeholder="Enter or scan EAN barcode…"
+      maxlength="14"
+      autocomplete="off"
+      inputmode="numeric"
+    />
+    <button class="search-btn" id="searchBtn" onclick="lookup()">Search</button>
+  </div>
+</div>
+
+<div class="result-area" id="resultArea"></div>
+
+<div class="recent-wrap" id="recentWrap" style="display:none;">
+  <div class="recent-title">Recent searches</div>
+  <div class="recent-list" id="recentList"></div>
+</div>
+
+<footer>
+  Data sourced live from Google Sheets &nbsp;·&nbsp; Updates reflect on next search
+</footer>
+
+<script>
+const SHEET_ID  = '1AHFO6uYt3-BC9y6SgGpSVXryWLz-AsEeOF2gtFf7oMM';
+const API_KEY   = 'AIzaSyD4rj2SVHrZXi-t-AP217GXRW78aOsLqHA';
+const SHEET_TAB = 'Sheet1';
+const RANGE     = 'A:D';
+
+const recentKey = 'ean_recent';
+
+window.addEventListener('DOMContentLoaded', () => {
+  renderRecent();
+  document.getElementById('eanInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') lookup();
+  });
+});
+
+async function lookup() {
+  const ean = document.getElementById('eanInput').value.trim();
+  if (!ean) { showError('Please enter an EAN barcode.'); return; }
+
+  showLoading();
+
+  try {
+    const range = encodeURIComponent(`${SHEET_TAB}!${RANGE}`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    if (data.error) { showError(`API Error: ${data.error.message}`); return; }
+
+    const rows = data.values || [];
+    if (rows.length < 2) { showNotFound(ean); return; }
+
+    const headers = rows[0].map(h => h.toString().toLowerCase().trim());
+    const eanCol  = headers.findIndex(h => h.includes('ean'));
+    const fsnCol  = headers.findIndex(h => h.includes('fsn'));
+    const locCol  = headers.findIndex(h => h.includes('location') || h.includes('loc'));
+
+    const ci = {
+      ean: eanCol >= 0 ? eanCol : 0,
+      fsn: fsnCol >= 0 ? fsnCol : 1,
+      loc: locCol >= 0 ? locCol : 2,
+    };
+
+    const match = rows.slice(1).find(row =>
+      (row[ci.ean] || '').toString().trim() === ean
+    );
+
+    addRecent(ean);
+    if (match) {
+      showResult({ ean, fsn: match[ci.fsn] || '—', location: match[ci.loc] || '—' });
+    } else {
+      showNotFound(ean);
+    }
+
+  } catch (err) {
+    showError(`Network error: ${err.message}`);
+  }
+}
+
+function showLoading() {
+  document.getElementById('resultArea').innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div>
+      Fetching from Google Sheets…
+    </div>`;
+}
+
+function showResult({ ean, fsn, location }) {
+  document.getElementById('resultArea').innerHTML = `
+    <div class="result-card success">
+      <div class="result-top">
+        <span class="result-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          Case Pack Product
+        </span>
+        <span class="result-ean">EAN: ${h(ean)}</span>
+      </div>
+      <div class="result-grid">
+        <div class="result-item full">
+          <div class="result-label">📍 Location</div>
+          <div class="result-value location">${h(location)}</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">FSN</div>
+          <div class="result-value fsn">${h(fsn)}</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">EAN Barcode</div>
+          <div class="result-value" style="font-family:'Space Mono',monospace;font-size:13px;">${h(ean)}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function showNotFound(ean) {
+  document.getElementById('resultArea').innerHTML = `
+    <div class="result-card notfound">
+      <div class="result-top">
+        <span class="result-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Not a Case Pack Product
+        </span>
+        <span class="result-ean">EAN: ${h(ean)}</span>
+      </div>
+      <p class="not-found-msg">
+        EAN <strong>${h(ean)}</strong> was not found in the inventory database.
+        <br>This product is <strong>not a Case Pack Product</strong> or has not been added to the sheet yet.
+      </p>
+    </div>`;
+}
+
+function showError(msg) {
+  document.getElementById('resultArea').innerHTML = `
+    <div class="result-card error">
+      <div class="result-top">
+        <span class="result-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Error
+        </span>
+      </div>
+      <p class="not-found-msg" style="color:var(--warn)">${h(msg)}</p>
+    </div>`;
+}
+
+function h(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function addRecent(ean) {
+  let list = JSON.parse(localStorage.getItem(recentKey) || '[]');
+  list = [ean, ...list.filter(e => e !== ean)].slice(0, 8);
+  localStorage.setItem(recentKey, JSON.stringify(list));
+  renderRecent();
+}
+
+function renderRecent() {
+  const list = JSON.parse(localStorage.getItem(recentKey) || '[]');
+  const wrap = document.getElementById('recentWrap');
+  const cont = document.getElementById('recentList');
+  if (!list.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  cont.innerHTML = list.map(ean =>
+    `<div class="recent-chip" onclick="fillAndSearch('${h(ean)}')">${h(ean)}</div>`
+  ).join('');
+}
+
+function fillAndSearch(ean) {
+  document.getElementById('eanInput').value = ean;
+  lookup();
+}
+</script>
+</body>
+</html>
